@@ -78,6 +78,10 @@ trait Read
         return array_values($this->fetchDirectory($directory,$recursive));
     }
 
+	/**
+	 * @param $path
+	 * @return bool|array
+	 */
     public function getMetadata($path)
     {
         if ($obj = $this->findFile($path)) {
