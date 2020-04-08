@@ -79,9 +79,15 @@ class Cache
         $path=Util::cleanPath($path);
         $this->files[$path]=$this->convertToDriveFile($file);
     }
+
+	/**
+	 * Check if we have path in cache
+	 * @param $path
+	 * @return bool
+	 */
     public function has($path){
         $path=Util::cleanPath($path);
-        if($this->isComplete(dirname($path))){
+        if($this->isComplete(dirname($path))){//Parent directory fully indexed so we should have child
             return true;
         }
         return array_key_exists($path,$this->files);
@@ -122,12 +128,12 @@ class Cache
     }
     public function convertToDriveFile($file){
         if($file && !$file instanceof Google_Service_Drive_DriveFile){
-            $dfile=new Google_Service_Drive_DriveFile();
-            $dfile->setId($file);
+            $dFile=new Google_Service_Drive_DriveFile();
+            $dFile->setId($file);
             if($file===$this->root){
-                $dfile->setMimeType(static::DIRMIME);
+                $dFile->setMimeType(static::DIRMIME);
             }
-            return $dfile;
+            return $dFile;
         }
         return $file;
     }
@@ -140,7 +146,7 @@ class Cache
                 $debug[$path] = $file->getMimeType() === static::DIRMIME ? 'dir' : 'file';
             }
         }
-        var_dump($debug);
+        echo json_encode($debug,JSON_PRETTY_PRINT);
     }
     protected function str_replace_path($search,$replace,$subject){
         $pos = strpos($subject, $search);

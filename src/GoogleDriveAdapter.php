@@ -8,128 +8,214 @@
 
 namespace As247\Flysystem\GoogleDrive;
 
-use As247\Flysystem\GoogleDrive\Concerns\Adapter;
-use As247\Flysystem\GoogleDrive\Concerns\Helpers;
-use As247\Flysystem\GoogleDrive\Concerns\InteractWithApi;
-use As247\Flysystem\GoogleDrive\Concerns\Read;
 use Google_Service_Drive;
-use Google_Service_Drive_DriveFile;
-use Google_Service_Drive_FileList;
-use Google_Service_Drive_Permission;
-use Google_Http_MediaFileUpload;
 use League\Flysystem\Adapter\AbstractAdapter;
-use League\Flysystem\AdapterInterface;
 use League\Flysystem\Config;
-use League\Flysystem\Util;
+use As247\Flysystem\GoogleDrive\Exceptions\GoogleDriveException;
 class GoogleDriveAdapter extends AbstractAdapter
 {
+    protected $driver;
 
-    use InteractWithApi,Adapter,Read,Helpers;
-    /**
-     * Fetch fields setting for get
-     *
-     * @var string
-     */
-    const FETCHFIELDS_GET = 'id,name,mimeType,modifiedTime,parents,permissions,size,webContentLink,webViewLink';
-
-    /**
-     * Fetch fields setting for list
-     *
-     * @var string
-     */
-    const FETCHFIELDS_LIST = 'files(FETCHFIELDS_GET),nextPageToken';
-
-    /**
-     * MIME tyoe of directory
-     *
-     * @var string
-     */
-    const DIRMIME = 'application/vnd.google-apps.folder';
-
-    /**
-     * Default options
-     *
-     * @var array
-     */
-    protected static $defaultOptions = [
-        'spaces' => 'drive',
-        'useHasDir' => false,
-        'additionalFetchField' => '',
-        'publishPermission' => [
-            'type' => 'anyone',
-            'role' => 'reader',
-            'withLink' => true
-        ],
-        'appsExportMap' => [
-            'application/vnd.google-apps.document' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.google-apps.spreadsheet' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.google-apps.drawing' => 'application/pdf',
-            'application/vnd.google-apps.presentation' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'application/vnd.google-apps.script' => 'application/vnd.google-apps.script+json',
-            'default' => 'application/pdf'
-        ],
-        // Default parameters for each command
-        // see https://developers.google.com/drive/v3/reference/files
-        // ex. 'defaultParams' => ['files.list' => ['includeTeamDriveItems' => true]]
-        'defaultParams' => [],
-        // Team Drive Id
-        'teamDriveId' => null,
-        // Corpora value for files.list with the Team Drive
-        'corpora' => 'teamDrive'
-    ];
-    protected $root;
-    protected $cache;
-    protected $options;
-    protected $spaces;
-    protected $publishPermission;
-    protected $fetchfieldsGet;
-    protected $fetchfieldsList;
-    protected $additionalFields;
 
     public function __construct(Google_Service_Drive $service, $root = null, $options = [])
     {
-        $this->service = $service;
-        $this->setPathPrefix($root);
-
-        $this->options = array_replace_recursive(static::$defaultOptions, $options);
-
-        $this->publishPermission = $this->options['publishPermission'];
-        $this->spaces = $this->options['spaces'];
-        $this->fetchfieldsGet = self::FETCHFIELDS_GET;
-        if ($this->options['additionalFetchField']) {
-            $this->fetchfieldsGet .= ',' . $this->options['additionalFetchField'];
-            $this->additionalFields = explode(',', $this->options['additionalFetchField']);
-        }
-        $this->fetchfieldsList = str_replace('FETCHFIELDS_GET', $this->fetchfieldsGet, self::FETCHFIELDS_LIST);
-        if (isset($this->options['defaultParams']) && is_array($this->options['defaultParams'])) {
-            $this->defaultParams = $this->options['defaultParams'];
-        }
-
-        if ($this->options['teamDriveId']) {
-            $this->setTeamDriveId($this->options['teamDriveId'], $this->options['corpora']);
-        }
-        $this->cache=new Cache($this->root);
+        $this->driver = new Driver($service,$root,$options);
     }
-    function setPathPrefix($prefix)
-    {
-        if(!$prefix){
-            $prefix='root';
-        }
-        $this->pathPrefix=$prefix;
-        $this->root=$prefix;
-    }
-    function getPathPrefix()
-    {
-        return $this->pathPrefix;
-    }
+    public function getDriver(){
+    	return $this->driver;
+	}
 
 
+	/**
+	 * @inheritDoc
+	 */
+	public function write($path, $contents, Config $config)
+	{
+		try {
+			return $this->driver->upload($path, $contents, $config);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function writeStream($path, $resource, Config $config)
+	{
+		try {
+			return $this->driver->upload($path, $resource, $config);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function update($path, $contents, Config $config)
+	{
+		try {
+			return $this->driver->upload($path, $contents, $config);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function updateStream($path, $resource, Config $config)
+	{
+		try {
+			return $this->driver->upload($path, $resource, $config);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function rename($path, $newpath)
+	{
+		try {
+			return $this->driver->move($path, $newpath);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function copy($path, $newpath)
+	{
+		try {
+			return $this->driver->copy($path, $newpath);
+		}catch (GoogleDriveException $exception){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function delete($path)
+	{
+		try {
+			return $this->driver->delete($path);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function deleteDir($dirname)
+	{
+		try {
+			return $this->driver->delete($dirname, true);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
 
+	/**
+	 * @inheritDoc
+	 */
+	public function createDir($dirname, Config $config)
+	{
+		try {
+			return $this->driver->createDirectory($dirname, $config);
+		}catch (GoogleDriveException $e){
+			echo $e->getMessage();
+			return false;
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function setVisibility($path, $visibility)
+	{
+		return $this->driver->setVisibility($path,$visibility);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function has($path)
+	{
+		return $this->driver->exists($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function read($path)
+	{
+		return $this->driver->read($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function readStream($path)
+	{
+		try {
+			return $this->driver->readStream($path);
+		}catch (GoogleDriveException $e){
+			return false;
+		}
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function listContents($directory = '', $recursive = false)
+	{
+		return array_values(iterator_to_array($this->driver->listContents($directory,$recursive)));
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getMetadata($path)
+	{
+		return $this->driver->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getSize($path)
+	{
+		return $this->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getMimetype($path)
+	{
+		return $this->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getTimestamp($path)
+	{
+		return $this->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function getVisibility($path)
+	{
+		return ['visibility'=>$this->driver->getVisibility($path),'path'=>$path];
+	}
 }
