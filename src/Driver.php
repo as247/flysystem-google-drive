@@ -14,7 +14,7 @@ use League\Flysystem\Config;
 use As247\Flysystem\GoogleDrive\Exceptions\GoogleDriveException;
 use Psr\Http\Message\RequestInterface;
 
-class Driver
+class Driver implements DriverInterface
 {
 	/**
 	 * MIME tyoe of directory
@@ -153,6 +153,73 @@ class Driver
 
 
 
+	/**
+	 * @inheritDoc
+	 */
+	public function write(string $path, string $contents, Config $config): void
+	{
+		$this->upload($path,$contents,$config);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function writeStream(string $path, $contents, Config $config): void
+	{
+		$this->upload($path,$contents,$config);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function deleteDirectory(string $path): void
+	{
+		if ($this->isFile($path)) {
+			throw new GoogleDriveException("$path is file");
+		}
+		$file = $this->find($path);
+		if(!$file){
+			throw new GoogleDriveException("$path not found");
+		}
+		if($file->getId()===$this->root){
+			throw new GoogleDriveException("Root directory cannot be deleted");
+		}
+		$this->filesDelete($file);
+		$this->cache->delete($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function visibility(string $path): array
+	{
+		return $this->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function mimeType(string $path): array
+	{
+		return $this->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function lastModified(string $path): array
+	{
+		return $this->getMetadata($path);
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	public function fileSize(string $path): array
+	{
+		return $this->getMetadata($path);
+	}
+
 
 	/**
 	 * Find for path
@@ -179,18 +246,16 @@ class Driver
 
 	}
 
-	public function createDirectory($path, Config $config){
+	public function createDirectory(string $path, Config $config):void {
 		$this->ensureDirectory(GdUtil::cleanPath($path));
 		$result=$this->getMetadata($path);
 		if ($visibility = $config->get('visibility')) {
-			if ($this->setVisibility($path, $visibility)) {
-				$result['visibility'] = $visibility;
-			}
+			$this->setVisibility($path, $visibility);
+			$result['visibility'] = $visibility;
 		}
-		return $result;
 	}
 
-	public function copy($fromPath, $toPath)
+	public function copy(string $fromPath, string $toPath, Config $config=null):void
 	{
 		$fromPath=GdUtil::cleanPath($fromPath);
 		$toPath=GdUtil::cleanPath($toPath);
@@ -213,15 +278,14 @@ class Driver
 		$file->setParents($parents);
 		$newFile = $this->filesCopy($from->id, $file);
 		$this->cache->update($toPath,$newFile);
-		return true;
 	}
 
-	public function move($fromPath, $toPath)
+	public function move(string $fromPath, string $toPath, Config $config=null):void
 	{
 		$fromPath=GdUtil::cleanPath($fromPath);
 		$toPath=GdUtil::cleanPath($toPath);
 		if($fromPath===$toPath){
-			return $toPath;
+			return ;
 		}
 		$from=$this->find($fromPath);
 		if(!$from){
@@ -242,7 +306,7 @@ class Driver
 				if ($this->isFile($toPath)) {//Destination path is file
 					throw new GoogleDriveException("Destination path exists as a file, cannot overwrite");
 				}else{
-					$this->delete($toPath,true);
+					$this->deleteDirectory($toPath);//overwrite, remove it first
 				}
 			}
 		}
@@ -261,7 +325,6 @@ class Driver
 		}
 		$this->filesUpdate($from->getId(), $file, $opts);
 		$this->cache->rename($fromPath,$toPath);
-		return true;
 	}
 
 	/**
@@ -270,9 +333,9 @@ class Driver
 	 * @param bool $force
 	 * @return bool
 	 */
-	public function delete($path,$force=false)
+	public function delete(string $path):void
 	{
-		if ($this->isDirectory($path) && !$force) {
+		if ($this->isDirectory($path)) {
 			throw new GoogleDriveException("$path is directory");
 		}
 		$file = $this->find($path);
@@ -284,7 +347,6 @@ class Driver
 		}
 		$this->filesDelete($file);
 		$this->cache->delete($path);
-		return true;
 	}
 
 
@@ -297,7 +359,7 @@ class Driver
 	 *
 	 * @return array|false item info array
 	 */
-	public function upload($path, $contents, Config $config)
+	protected function upload($path, $contents, Config $config)
 	{
 		$paths=$this->parsePath($path);
 		$fileName = array_pop($paths);
@@ -335,7 +397,7 @@ class Driver
 			}
 		}
 		// set chunk size (max: 100MB)
-		$chunkSizeBytes = 100 * 1024 * 1024;
+		$chunkSizeBytes = 5 * 1024 * 1024;
 		if ($isResource) {
 			$memory = GdUtil::getIniBytes('memory_limit');
 			if ($memory > 0) {
@@ -350,9 +412,6 @@ class Driver
 			}
 		}
 
-		if (!$mime) {
-			//$mime = Util::guessMimeType($fileName, $isResource ? '' : $contents);
-		}
 		if($mime) {
 			$file->setMimeType($mime);
 		}
@@ -416,7 +475,7 @@ class Driver
 
 		return false;
 	}
-	function listContents($directory,$recursive=true){
+	function listContents(string $directory,bool $recursive=true):iterable{
 		return $this->fetchDirectory($directory,$recursive);
 	}
 	protected  function fetchDirectory($directory, $recursive = true, $maxResults = 0)
@@ -550,46 +609,19 @@ class Driver
 		return false;
 	}
 
-	/**
-	 * Get the object permissions presented as a visibility.
-	 *
-	 * @param string $path
-	 *            itemId path
-	 *
-	 * @return string
-	 */
-	public function getVisibility($path)
+
+	public function setVisibility(string $path, $visibility):void
 	{
-		$file = $this->find($path);
-		if (!$file) {
-			return false;
-		}
-		$permissions = $file->getPermissions();
-		$visibility = AdapterInterface::VISIBILITY_PRIVATE;
-		foreach ($permissions as $permission) {
-			if ($permission->type === $this->publishPermission['type'] && $permission->role === $this->publishPermission['role']) {
-				$visibility = AdapterInterface::VISIBILITY_PUBLIC;
-				break;
-			}
-		}
-		return $visibility;
+		($visibility === AdapterInterface::VISIBILITY_PUBLIC) ? $this->publish($path) : $this->unPublish($path);
 	}
-	public function setVisibility($path, $visibility)
-	{
-		$result = ($visibility === AdapterInterface::VISIBILITY_PUBLIC) ? $this->publish($path) : $this->unPublish($path);
-		if ($result) {
-			return compact('path', 'visibility');
-		}
-		return false;
-	}
-	public function read($path)
+	public function read(string $path):string
 	{
 		if($readStream=$this->readStream($path)){
-			return ['type' => 'file', 'path' => $path, 'contents' => (string)stream_get_contents($readStream['stream'])];
+			return (string)stream_get_contents($readStream);
 		}
-		return false;
+		return '';
 	}
-	public function readStream($path){
+	public function readStream(string $path){
 		$file = $this->find($path);
 		if(!$this->isFile($path)) {
 			throw new GoogleDriveException("File not found $file");
@@ -604,7 +636,7 @@ class Driver
 		}
 		$this->service->getClient()->setUseBatch(false);
 		if(is_resource($stream)){
-			return compact('stream');
+			return $stream;
 		}
 
 		throw new GoogleDriveException("Failed to read file $path");
@@ -1028,8 +1060,13 @@ class Driver
 		]);
 		$this->setRoot($teamDriveId);
 	}
-	public function exists($path)
-	{
+
+	/**
+	 * Check if given path exists
+	 * @param $path
+	 * @return bool
+	 */
+	public function exists($path){
 		return (bool)$this->getMetadata($path);
 	}
 	public function isDirectory($path){
@@ -1039,6 +1076,13 @@ class Driver
 	public function isFile($path){
 		$meta=$this->getMetadata($path);
 		return isset($meta['type'])&& $meta['type']==='file';
+	}
+	/**
+	 * @inheritDoc
+	 */
+	public function fileExists(string $path): bool
+	{
+		return $this->isFile($path);
 	}
 	/**
 	 * @param $path
@@ -1070,6 +1114,18 @@ class Driver
 			$result['mimetype'] = $object->mimeType;
 			$result['size'] = (int) $object->getSize();
 		}
+
+
+		$permissions = $object->getPermissions();
+		$visibility = AdapterInterface::VISIBILITY_PRIVATE;
+		foreach ($permissions as $permission) {
+			if ($permission->type === $this->publishPermission['type'] && $permission->role === $this->publishPermission['role']) {
+				$visibility = AdapterInterface::VISIBILITY_PUBLIC;
+				break;
+			}
+		}
+		$result['visibility']=$visibility;
+
 		// attach additional fields
 		if ($this->additionalFields) {
 			foreach($this->additionalFields as $field) {
@@ -1089,12 +1145,9 @@ class Driver
 	public function enableQueryLog(){
 		$this->logQuery=true;
 	}
-	public function showQueryLog($query='queries'){
-		if(!$query){
-			$show=$this->query;
-		}else{
-			$show=isset($this->query[$query])?$this->query[$query]:null;
-		}
-		print_r($show);
+	public function showQueryLog($which='queries'){
+		$this->logger->showQueryLog($which);
 	}
+
+
 }

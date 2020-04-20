@@ -32,7 +32,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function write($path, $contents, Config $config)
 	{
 		try {
-			return $this->driver->upload($path, $contents, $config);
+			$this->driver->write($path, $contents, $config);
+			return $this->driver->getMetadata($path);
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -44,7 +45,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function writeStream($path, $resource, Config $config)
 	{
 		try {
-			return $this->driver->upload($path, $resource, $config);
+			$this->driver->writeStream($path, $resource, $config);
+			return $this->driver->getMetadata($path);
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -56,7 +58,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function update($path, $contents, Config $config)
 	{
 		try {
-			return $this->driver->upload($path, $contents, $config);
+			$this->driver->write($path, $contents, $config);
+			return $this->driver->getMetadata($path);
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -68,7 +71,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function updateStream($path, $resource, Config $config)
 	{
 		try {
-			return $this->driver->upload($path, $resource, $config);
+			$this->driver->writeStream($path, $resource, $config);
+			return $this->driver->getMetadata($path);
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -80,7 +84,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function rename($path, $newpath)
 	{
 		try {
-			return $this->driver->move($path, $newpath);
+			$this->driver->move($path, $newpath);
+			return true;
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -92,7 +97,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function copy($path, $newpath)
 	{
 		try {
-			return $this->driver->copy($path, $newpath);
+			$this->driver->copy($path, $newpath);
+			return true;
 		}catch (GoogleDriveException $exception){
 			return false;
 		}
@@ -104,7 +110,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function delete($path)
 	{
 		try {
-			return $this->driver->delete($path);
+			$this->driver->delete($path);
+			return true;
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -116,7 +123,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function deleteDir($dirname)
 	{
 		try {
-			return $this->driver->delete($dirname, true);
+			$this->driver->deleteDirectory($dirname);
+			return true;
 		}catch (GoogleDriveException $e){
 			return false;
 		}
@@ -128,9 +136,9 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function createDir($dirname, Config $config)
 	{
 		try {
-			return $this->driver->createDirectory($dirname, $config);
+			$this->driver->createDirectory($dirname, $config);
+			return $this->driver->getMetadata($dirname);
 		}catch (GoogleDriveException $e){
-			echo $e->getMessage();
 			return false;
 		}
 	}
@@ -140,7 +148,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function setVisibility($path, $visibility)
 	{
-		return $this->driver->setVisibility($path,$visibility);
+		$this->driver->setVisibility($path,$visibility);
+		return $this->driver->getMetadata($path);
 	}
 
 	/**
@@ -156,7 +165,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function read($path)
 	{
-		return $this->driver->read($path);
+		return ['contents'=>$this->driver->read($path)];
 	}
 
 	/**
@@ -165,7 +174,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	public function readStream($path)
 	{
 		try {
-			return $this->driver->readStream($path);
+			return ['stream'=>$this->driver->readStream($path)];
 		}catch (GoogleDriveException $e){
 			return false;
 		}

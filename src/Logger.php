@@ -24,4 +24,12 @@ class Logger
 		$this->queries['queries'][$cmd][]=$query;
 		return $this;
 	}
+	public function showQueryLog($query='queries'){
+		if(!$query){
+			$show=$this->queries;
+		}else{
+			$show=isset($this->queries[$query])?$this->queries[$query]:null;
+		}
+		print_r($show);
+	}
 }
