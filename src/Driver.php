@@ -4,10 +4,13 @@
 namespace As247\Flysystem\GoogleDrive;
 
 use As247\Flysystem\GoogleDrive\Util as GdUtil;
+use Exception;
+use Google_Http_MediaFileUpload;
 use Google_Service_Drive;
 use Google_Service_Drive_DriveFile;
 use Google_Service_Drive_FileList;
 use Google_Service_Drive_Permission;
+use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Psr7\Stream;
 use League\Flysystem\AdapterInterface;
 use League\Flysystem\Config;
@@ -330,8 +333,7 @@ class Driver implements DriverInterface
 	/**
 	 * Delete file only, if force is set to true it also delete directory
 	 * @param $path
-	 * @param bool $force
-	 * @return bool
+	 * @return void
 	 */
 	public function delete(string $path):void
 	{
@@ -427,7 +429,7 @@ class Driver implements DriverInterface
 			}
 
 			// Create a media file upload to represent our upload process.
-			$media = new \Google_Http_MediaFileUpload($client, $request, $mime, null, true, $chunkSizeBytes);
+			$media = new Google_Http_MediaFileUpload($client, $request, $mime, null, true, $chunkSizeBytes);
 			$media->setFileSize($fstat['size']);
 			// Upload the various chunks. $status will be false until the process is
 			// complete.
@@ -464,9 +466,8 @@ class Driver implements DriverInterface
 			$result = $this->normalizeFileInfo($obj, $path);
 
 			if ($visibility = $config->get('visibility')) {
-				if ($this->setVisibility($path, $visibility)) {
-					$result['visibility'] = $visibility;
-				}
+				$this->setVisibility($path, $visibility);
+				$result['visibility'] = $visibility;
 			}
 			$this->cache->update($path,$obj);
 
@@ -540,7 +541,7 @@ class Driver implements DriverInterface
 				} else {
 					$pageToken = NULL;
 				}
-			} catch (\Exception $e) {
+			} catch (Exception $e) {
 				$pageToken = NULL;
 			}
 		} while ($pageToken && $maxResults === 0);
@@ -562,7 +563,7 @@ class Driver implements DriverInterface
 	protected function publish($path)
 	{
 		if ($file = $this->find($path)) {
-			if ($this->getVisibility($path) === AdapterInterface::VISIBILITY_PUBLIC) {
+			if ($this->visibility($path)['visibility'] === AdapterInterface::VISIBILITY_PUBLIC) {
 				return true;
 			}
 			try {
@@ -573,7 +574,7 @@ class Driver implements DriverInterface
 					$file->setPermissions($permissions);
 					return true;
 				}
-			} catch (\Exception $e) {
+			} catch (Exception $e) {
 				return false;
 			}
 		}
@@ -602,7 +603,7 @@ class Driver implements DriverInterface
 				}
 				$file->setPermissions($permissions);
 				return true;
-			} catch (\Exception $e) {
+			} catch (Exception $e) {
 				return false;
 			}
 		}
@@ -627,152 +628,24 @@ class Driver implements DriverInterface
 			throw new GoogleDriveException("File not found $file");
 		}
 
-		$this->service->getClient()->setUseBatch(true);
-		$stream=null;
-		$client=$this->service->getClient()->authorize();
-		$response = $client->send($this->filesGet($file->getId(),['alt'=>'media']), ['stream' => true]);
-		if ($response->getBody() instanceof Stream) {
-			$stream = $response->getBody()->detach();
-		}
-		$this->service->getClient()->setUseBatch(false);
-		if(is_resource($stream)){
-			return $stream;
+		try {
+			$this->service->getClient()->setUseBatch(true);
+			$stream=null;
+			$client=$this->service->getClient()->authorize();
+			$response = $client->send($this->filesGet($file->getId(), ['alt' => 'media']), ['stream' => true]);
+			if ($response->getBody() instanceof Stream) {
+				$stream = $response->getBody()->detach();
+			}
+			$this->service->getClient()->setUseBatch(false);
+			if (is_resource($stream)) {
+				return $stream;
+			}
+		}catch (GuzzleException $e){
+			throw new GoogleDriveException("Failed to read file $path",0,$e);
 		}
 
 		throw new GoogleDriveException("Failed to read file $path");
 	}
-	/**
-	 * Get download url
-	 *
-	 * @param string $path
-	 *
-	 * @return string|false
-	 */
-	protected function getDownloadUrl($path)
-	{
-		if (!$this->isFile($path)) {
-			return false;
-		}
-		$file = $this->find($path);
-		if (!$file) {
-			return false;
-		}
-		if (strpos($file->mimeType, 'application/vnd.google-apps') !== 0) {
-			$url = 'https://www.googleapis.com/drive/v3/files/' . $file->getId() . '?alt=media';
-			//$url.='&acknowledgeAbuse=true';
-			return $url;
-		} else {
-			$mimeMap = $this->options['appsExportMap'];
-			if (isset($mimeMap[$file->getMimeType()])) {
-				$mime = $mimeMap[$file->getMimeType()];
-			} else {
-				$mime = $mimeMap['default'];
-			}
-			$mime = rawurlencode($mime);
-
-			return 'https://www.googleapis.com/drive/v3/files/' . $file->getId() . '/export?mimeType=' . $mime;
-		}
-	}
-	protected function readStreamNative($path)
-	{
-		$redirect = [];
-		if (func_num_args() > 1) {
-			$redirect = func_get_arg(1);
-		}
-		$access_token = '';
-		if (! $redirect) {
-			$redirect = [
-				'cnt' => 0,
-				'url' => '',
-				'token' => '',
-				'cookies' => []
-			];
-			if ($dlurl = $this->getDownloadUrl($path)) {
-				$client = $this->service->getClient();
-				if ($client->isUsingApplicationDefaultCredentials()) {
-					$token = $client->fetchAccessTokenWithAssertion();
-				} else {
-					$token = $client->getAccessToken();
-				}
-				if (is_array($token)) {
-					if (empty($token['access_token']) && !empty($token['refresh_token'])) {
-						$token = $client->fetchAccessTokenWithRefreshToken();
-					}
-					$access_token = $token['access_token'];
-				} else {
-					if ($token = $client->getAccessToken()) {
-						$access_token = $token['access_token'];
-					}
-				}
-				$redirect = [
-					'cnt' => 0,
-					'url' => '',
-					'token' => $access_token,
-					'cookies' => []
-				];
-			}
-		} else {
-			if ($redirect['cnt'] > 5) {
-				return false;
-			}
-			$dlurl = $redirect['url'];
-			$redirect['url'] = '';
-			$access_token = $redirect['token'];
-		}
-
-		if ($dlurl) {
-			$url = parse_url($dlurl);
-			$cookies = [];
-			if ($redirect['cookies']) {
-				foreach ($redirect['cookies'] as $d => $c) {
-					if (strpos($url['host'], $d) !== false) {
-						$cookies[] = $c;
-					}
-				}
-			}
-			if ($access_token) {
-				$query = isset($url['query']) ? '?' . $url['query'] : '';
-				$stream = stream_socket_client('ssl://' . $url['host'] . ':443');
-				stream_set_timeout($stream, 300);
-				fputs($stream, "GET {$url['path']}{$query} HTTP/1.1\r\n");
-				fputs($stream, "Host: {$url['host']}\r\n");
-				fputs($stream, "Authorization: Bearer {$access_token}\r\n");
-				fputs($stream, "Connection: Close\r\n");
-				if ($cookies) {
-					fputs($stream, "Cookie: " . join('; ', $cookies) . "\r\n");
-				}
-				fputs($stream, "\r\n");
-				while (($res = trim(fgets($stream))) !== '') {
-					// find redirect
-					if (preg_match('/^Location: (.+)$/', $res, $m)) {
-						$redirect['url'] = $m[1];
-					}
-					// fetch cookie
-					if (strpos($res, 'Set-Cookie:') === 0) {
-						$domain = $url['host'];
-						if (preg_match('/^Set-Cookie:(.+)(?:domain=\s*([^ ;]+))?/i', $res, $c1)) {
-							if (! empty($c1[2])) {
-								$domain = trim($c1[2]);
-							}
-							if (preg_match('/([^ ]+=[^;]+)/', $c1[1], $c2)) {
-								$redirect['cookies'][$domain] = $c2[1];
-							}
-						}
-					}
-				}
-				if ($redirect['url']) {
-					$redirect['cnt'] ++;
-					fclose($stream);
-					return $this->readStreamNative($path, $redirect);
-				}
-				return compact('stream');
-			}
-		}
-		return false;
-	}
-
-
-
 
 	/**
 	 * Gets the service (Google_Service_Drive)
