@@ -111,7 +111,9 @@ class Driver implements DriverInterface
 
 	}
 
-
+	public function getCache(){
+		return $this->cache;
+	}
 	function setRoot($root){
 		$this->root=$root;
 		$this->cache=new Cache($this->root);
@@ -159,7 +161,7 @@ class Driver implements DriverInterface
 	/**
 	 * @inheritDoc
 	 */
-	public function write(string $path, string $contents, Config $config): void
+	public function write(string $path, string $contents, Config $config=null): void
 	{
 		$this->upload($path,$contents,$config);
 	}
@@ -269,7 +271,7 @@ class Driver implements DriverInterface
 		if ($this->isDirectory($toPath)) {
 			throw new GoogleDriveException("$toPath is directory",101);
 		}
-		if($this->exists($toPath)){
+		if($this->has($toPath)){
 			$this->delete($toPath);
 		}
 		$paths = $this->parsePath($toPath);
@@ -297,7 +299,7 @@ class Driver implements DriverInterface
 		$oldParent=$from->getParents()[0];
 		$newParentId=null;
 		if($this->isFile($from)){//we moving file
-			if($this->exists($toPath)) {
+			if($this->has($toPath)) {
 				if ($this->isDirectory($toPath)) {//Destination path is directory
 					throw new GoogleDriveException("Destination path exists as a directory, cannot overwrite");
 				}else{
@@ -305,7 +307,7 @@ class Driver implements DriverInterface
 				}
 			}
 		}else{//we moving directory
-			if($this->exists($toPath)) {
+			if($this->has($toPath)) {
 				if ($this->isFile($toPath)) {//Destination path is file
 					throw new GoogleDriveException("Destination path exists as a file, cannot overwrite");
 				}else{
@@ -361,7 +363,7 @@ class Driver implements DriverInterface
 	 *
 	 * @return array|false item info array
 	 */
-	protected function upload($path, $contents, Config $config)
+	protected function upload($path, $contents, Config $config=null)
 	{
 		$paths=$this->parsePath($path);
 		$fileName = array_pop($paths);
@@ -372,7 +374,7 @@ class Driver implements DriverInterface
 			return false;
 		}
 		$mode = 'update';
-		$mime = $config->get('mimetype');
+		$mime = $config?$config->get('mimetype'):null;
 		$file = new Google_Service_Drive_DriveFile();
 		$srcFile = $this->find($path);
 		if (!$srcFile) {
@@ -465,7 +467,7 @@ class Driver implements DriverInterface
 		if ($obj instanceof Google_Service_Drive_DriveFile) {
 			$result = $this->normalizeFileInfo($obj, $path);
 
-			if ($visibility = $config->get('visibility')) {
+			if ($config && $visibility = $config->get('visibility')) {
 				$this->setVisibility($path, $visibility);
 				$result['visibility'] = $visibility;
 			}
@@ -476,22 +478,23 @@ class Driver implements DriverInterface
 
 		return false;
 	}
-	function listContents(string $directory,bool $recursive=true):iterable{
-		return $this->fetchDirectory($directory,$recursive);
-	}
-	protected  function fetchDirectory($directory, $recursive = true, $maxResults = 0)
+
+	/**
+	 * @param string $directory
+	 * @param bool $recursive
+	 * @return \Generator
+	 */
+	public function listContents(string $directory, bool $recursive = false):iterable
 	{
 		if(!$this->isDirectory($directory)){
 			yield from [];
 			return ;
 		}
-		$results = $this->fetchDirectoryCache($directory,$maxResults);
+		$results = $this->fetchDirectory($directory,1000);
 		if ($recursive) {
 			foreach ($results as $id=>$result) {
 				if ($result['type'] === 'dir') {
-					yield from $this->fetchDirectory($result['path'], true, $maxResults) ;
-					//var_dump($result['path']);
-
+					yield from $this->listContents($result['path'], true) ;
 				}
 				yield $id=>$result;
 			}
@@ -501,7 +504,7 @@ class Driver implements DriverInterface
 
 	}
 
-	protected function fetchDirectoryCache($directory,$maxResults=1000, $pageSize=1000)
+	protected function fetchDirectory($directory, $pageSize=1000)
 	{
 		if ($this->cache->isComplete($directory)) {
 			foreach ($this->cache->listContents($directory) as $path => $file) {
@@ -515,9 +518,8 @@ class Driver implements DriverInterface
 		}
 
 		list($itemId) = $this->detectPath($directory);
-
-		$maxResults = min($maxResults, 1000);
-		$pageSize=min($pageSize,$maxResults);//allow smaller page size to save memory
+		$pageSize=min($pageSize,1000);//limit range of page size
+		$pageSize=max($pageSize,1);//
 		$parameters = [
 			'pageSize' => $pageSize,
 			'spaces' => $this->spaces,
@@ -544,13 +546,9 @@ class Driver implements DriverInterface
 			} catch (Exception $e) {
 				$pageToken = NULL;
 			}
-		} while ($pageToken && $maxResults === 0);
+		} while ($pageToken);
 
-		if ($maxResults === 0) {
-			$this->cache->setComplete($directory);
-		}
-
-
+		$this->cache->setComplete($directory);
 	}
 	/**
 	 * Publish specified path item
@@ -939,7 +937,7 @@ class Driver implements DriverInterface
 	 * @param $path
 	 * @return bool
 	 */
-	public function exists($path){
+	public function has($path){
 		return (bool)$this->getMetadata($path);
 	}
 	public function isDirectory($path){
@@ -1014,6 +1012,9 @@ class Driver implements DriverInterface
 			return ;
 		}
 		$this->logger->query($cmd,$query);
+	}
+	public function getLogger(){
+		return $this->logger;
 	}
 	public function enableQueryLog(){
 		$this->logQuery=true;

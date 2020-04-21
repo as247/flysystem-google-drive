@@ -29,7 +29,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	/**
 	 * @inheritDoc
 	 */
-	public function write($path, $contents, Config $config)
+	public function write($path, $contents, Config $config=null)
 	{
 		try {
 			$this->driver->write($path, $contents, $config);
@@ -57,12 +57,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function update($path, $contents, Config $config)
 	{
-		try {
-			$this->driver->write($path, $contents, $config);
-			return $this->driver->getMetadata($path);
-		}catch (GoogleDriveException $e){
-			return false;
-		}
+		return $this->write($path,$contents,$config);
 	}
 
 	/**
@@ -70,12 +65,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function updateStream($path, $resource, Config $config)
 	{
-		try {
-			$this->driver->writeStream($path, $resource, $config);
-			return $this->driver->getMetadata($path);
-		}catch (GoogleDriveException $e){
-			return false;
-		}
+		return $this->writeStream($path,$resource,$config);
 	}
 
 	/**
@@ -157,7 +147,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function has($path)
 	{
-		return $this->driver->exists($path);
+		return $this->driver->has($path);
 	}
 
 	/**
@@ -185,7 +175,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function listContents($directory = '', $recursive = false)
 	{
-		return array_values(iterator_to_array($this->driver->listContents($directory,$recursive)));
+		return array_values(iterator_to_array($this->driver->listContents($directory,$recursive),false));
 	}
 
 	/**
@@ -225,6 +215,6 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function getVisibility($path)
 	{
-		return ['visibility'=>$this->driver->getVisibility($path),'path'=>$path];
+		return $this->driver->visibility($path);
 	}
 }

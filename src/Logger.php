@@ -24,6 +24,9 @@ class Logger
 		$this->queries['queries'][$cmd][]=$query;
 		return $this;
 	}
+	function getQuery($key){
+		return $this->queries[$key]??null;
+	}
 	public function showQueryLog($query='queries'){
 		if(!$query){
 			$show=$this->queries;
