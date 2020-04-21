@@ -3,8 +3,11 @@
 
 namespace As247\Flysystem\GoogleDrive;
 
+use As247\Flysystem\DriveSupport\Cache\PathObjectCache;
+use As247\Flysystem\DriveSupport\Contracts\Cache\PathCacheInterface;
 use As247\Flysystem\GoogleDrive\Util as GdUtil;
 use Exception;
+use Generator;
 use Google_Http_MediaFileUpload;
 use Google_Service_Drive;
 use Google_Service_Drive_DriveFile;
@@ -16,6 +19,7 @@ use League\Flysystem\AdapterInterface;
 use League\Flysystem\Config;
 use As247\Flysystem\GoogleDrive\Exceptions\GoogleDriveException;
 use Psr\Http\Message\RequestInterface;
+use As247\Flysystem\DriveSupport\Support\Path;
 
 class Driver implements DriverInterface
 {
@@ -83,7 +87,7 @@ class Driver implements DriverInterface
 	protected $logQuery=true;
 	protected $root;//Root id
 	/**
-	 * @var Cache
+	 * @var PathObjectCache|PathCacheInterface
 	 */
 	protected $cache;
 	protected $maxFolderLevel=128;
@@ -116,7 +120,11 @@ class Driver implements DriverInterface
 	}
 	function setRoot($root){
 		$this->root=$root;
-		$this->cache=new Cache($this->root);
+		$this->cache=new PathObjectCache();
+		$dRoot=new Google_Service_Drive_DriveFile();
+		$dRoot->setId($this->root);
+		$dRoot->setMimeType(static::DIRMIME);
+		$this->cache->forever('/',$dRoot);
 	}
 
 	/**
@@ -125,7 +133,7 @@ class Driver implements DriverInterface
 	 * @throws GoogleDriveException
 	 */
 	protected function ensureDirectory($path){
-		$path=GdUtil::cleanPath($path);
+		$path=Path::clean($path);
 		if ($this->isFile($path)) {
 			throw new GoogleDriveException('Cannot create directory '.$path.': File exists',100);
 		}
@@ -147,8 +155,8 @@ class Driver implements DriverInterface
 				}
 
 				$created = $this->dirCreate($name, $parent);
-				$this->cache->update($currentPaths,$created);
-				$this->cache->setComplete($currentPaths);
+				$this->cache->put($currentPaths,$created);
+				$this->cache->completed($currentPaths);
 				$parent = $created->getId();
 			}
 		}
@@ -190,7 +198,7 @@ class Driver implements DriverInterface
 			throw new GoogleDriveException("Root directory cannot be deleted");
 		}
 		$this->filesDelete($file);
-		$this->cache->delete($path);
+		$this->cache->put($path,false);
 	}
 
 	/**
@@ -252,7 +260,7 @@ class Driver implements DriverInterface
 	}
 
 	public function createDirectory(string $path, Config $config):void {
-		$this->ensureDirectory(GdUtil::cleanPath($path));
+		$this->ensureDirectory(Path::clean($path));
 		$result=$this->getMetadata($path);
 		if ($visibility = $config->get('visibility')) {
 			$this->setVisibility($path, $visibility);
@@ -262,8 +270,8 @@ class Driver implements DriverInterface
 
 	public function copy(string $fromPath, string $toPath, Config $config=null):void
 	{
-		$fromPath=GdUtil::cleanPath($fromPath);
-		$toPath=GdUtil::cleanPath($toPath);
+		$fromPath=Path::clean($fromPath);
+		$toPath=Path::clean($toPath);
 		if ($this->isDirectory($fromPath)) {
 			throw new GoogleDriveException("$fromPath is directory",101);
 		}
@@ -282,13 +290,13 @@ class Driver implements DriverInterface
 		$file->setName($fileName);
 		$file->setParents($parents);
 		$newFile = $this->filesCopy($from->id, $file);
-		$this->cache->update($toPath,$newFile);
+		$this->cache->put($toPath,$newFile);
 	}
 
 	public function move(string $fromPath, string $toPath, Config $config=null):void
 	{
-		$fromPath=GdUtil::cleanPath($fromPath);
-		$toPath=GdUtil::cleanPath($toPath);
+		$fromPath=Path::clean($fromPath);
+		$toPath=Path::clean($toPath);
 		if($fromPath===$toPath){
 			return ;
 		}
@@ -350,7 +358,7 @@ class Driver implements DriverInterface
 			throw new GoogleDriveException("Root directory cannot be deleted");
 		}
 		$this->filesDelete($file);
-		$this->cache->delete($path);
+		$this->cache->put($path,false);
 	}
 
 
@@ -471,7 +479,7 @@ class Driver implements DriverInterface
 				$this->setVisibility($path, $visibility);
 				$result['visibility'] = $visibility;
 			}
-			$this->cache->update($path,$obj);
+			$this->cache->put($path,$obj);
 
 			return $result;
 		}
@@ -482,7 +490,7 @@ class Driver implements DriverInterface
 	/**
 	 * @param string $directory
 	 * @param bool $recursive
-	 * @return \Generator
+	 * @return Generator
 	 */
 	public function listContents(string $directory, bool $recursive = false):iterable
 	{
@@ -506,13 +514,11 @@ class Driver implements DriverInterface
 
 	protected function fetchDirectory($directory, $pageSize=1000)
 	{
-		if ($this->cache->isComplete($directory)) {
-			foreach ($this->cache->listContents($directory) as $path => $file) {
-				if(!$file){
-					continue;
+		if ($this->cache->completed($directory)) {
+			foreach ($this->cache->query($directory) as $path => $file) {
+				if($file instanceof Google_Service_Drive_DriveFile){
+					yield $file->getId() => $this->normalizeFileInfo($file, $path);
 				}
-				yield $file->getId() => $this->normalizeFileInfo($file, $path);
-
 			}
 			return null;
 		}
@@ -537,7 +543,7 @@ class Driver implements DriverInterface
 						$id = $obj->getId();
 						$result = $this->normalizeFileInfo($obj, $directory . '/' . $obj->getName());
 						yield $id=>$result;
-						$this->cache->update($result['path'],$obj);
+						$this->cache->put($result['path'],$obj);
 					}
 					$pageToken = $fileObjs->getNextPageToken();
 				} else {
@@ -548,7 +554,7 @@ class Driver implements DriverInterface
 			}
 		} while ($pageToken);
 
-		$this->cache->setComplete($directory);
+		$this->cache->complete($directory);
 	}
 	/**
 	 * Publish specified path item
@@ -655,7 +661,7 @@ class Driver implements DriverInterface
 		return $this->service;
 	}
 	protected function parsePath($path){
-		$paths=GdUtil::cleanPath($path,'array');
+		$paths=Path::clean($path,'array');
 		$directory=[];
 		$file=[];
 		$level=0;
@@ -687,7 +693,7 @@ class Driver implements DriverInterface
 		$paths=$this->parsePath($path);
 		$this->logger->debug("Path finding: ".json_encode($paths));
 		$currentPaths = [];
-		$this->cache->set('/',$this->root);
+
 		$parent=$this->cache->get('/');
 
 		while (null!==($name = array_shift($paths))) {
@@ -709,18 +715,18 @@ class Driver implements DriverInterface
 			if($isFull){
 				$parentPaths=$currentPaths;
 				array_pop($parentPaths);
-				$this->cache->setComplete($parentPaths);
+				$this->cache->complete($parentPaths);
 			}
 			$foundDir = false;
 			//Set current path as not exists, it will be updated again when we got matched file
-			$this->cache->update($currentPaths,false);
+			$this->cache->put($currentPaths,false);
 			if ($files->count()) {
 				$currentPathsTmp=$currentPaths;
 				foreach ($files as $file) {
 					if ($file instanceof Google_Service_Drive_DriveFile) {
 						array_pop($currentPathsTmp);
 						array_push($currentPathsTmp, $file->getName());
-						$this->cache->update($currentPathsTmp,$file);
+						$this->cache->put($currentPathsTmp,$file);
 						if($this->isDirectory($file) && $file->getName()===$name){
 							$foundDir=$file;
 						}
