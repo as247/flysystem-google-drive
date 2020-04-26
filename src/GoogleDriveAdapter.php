@@ -8,18 +8,25 @@
 
 namespace As247\Flysystem\GoogleDrive;
 
+use As247\Flysystem\DriveSupport\Exception\InvalidStreamProvided;
+use As247\Flysystem\DriveSupport\Exception\UnableToCopyFile;
+use As247\Flysystem\DriveSupport\Exception\UnableToCreateDirectory;
+use As247\Flysystem\DriveSupport\Exception\UnableToDeleteDirectory;
+use As247\Flysystem\DriveSupport\Exception\UnableToDeleteFile;
+use As247\Flysystem\DriveSupport\Exception\UnableToMoveFile;
+use As247\Flysystem\DriveSupport\Exception\UnableToReadFile;
+use As247\Flysystem\DriveSupport\Exception\UnableToWriteFile;
 use Google_Service_Drive;
 use League\Flysystem\Adapter\AbstractAdapter;
 use League\Flysystem\Config;
-use As247\Flysystem\GoogleDrive\Exceptions\GoogleDriveException;
 class GoogleDriveAdapter extends AbstractAdapter
 {
     protected $driver;
 
 
-    public function __construct(Google_Service_Drive $service, $root = null, $options = [])
+    public function __construct(Google_Service_Drive $service, $options = [])
     {
-        $this->driver = new Driver($service,$root,$options);
+        $this->driver = new Driver($service,$options);
     }
     public function getDriver(){
     	return $this->driver;
@@ -34,7 +41,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 		try {
 			$this->driver->write($path, $contents, $config);
 			return $this->driver->getMetadata($path);
-		}catch (GoogleDriveException $e){
+		}catch (UnableToWriteFile $e){
 			return false;
 		}
 	}
@@ -47,7 +54,9 @@ class GoogleDriveAdapter extends AbstractAdapter
 		try {
 			$this->driver->writeStream($path, $resource, $config);
 			return $this->driver->getMetadata($path);
-		}catch (GoogleDriveException $e){
+		}catch (UnableToWriteFile $e){
+			return false;
+		}catch (InvalidStreamProvided $e){
 			return false;
 		}
 	}
@@ -76,7 +85,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 		try {
 			$this->driver->move($path, $newpath);
 			return true;
-		}catch (GoogleDriveException $e){
+		}catch (UnableToMoveFile $e){
 			return false;
 		}
 	}
@@ -89,7 +98,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 		try {
 			$this->driver->copy($path, $newpath);
 			return true;
-		}catch (GoogleDriveException $exception){
+		}catch (UnableToCopyFile $exception){
+			echo $exception->getMessage();
 			return false;
 		}
 	}
@@ -99,10 +109,13 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function delete($path)
 	{
+		if(!$this->has($path)){
+			return false;
+		}
 		try {
 			$this->driver->delete($path);
 			return true;
-		}catch (GoogleDriveException $e){
+		}catch (UnableToDeleteFile $e){
 			return false;
 		}
 	}
@@ -112,10 +125,13 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function deleteDir($dirname)
 	{
+		if(!$this->has($dirname)){
+			return false;
+		}
 		try {
 			$this->driver->deleteDirectory($dirname);
 			return true;
-		}catch (GoogleDriveException $e){
+		}catch (UnableToDeleteDirectory $e){
 			return false;
 		}
 	}
@@ -128,7 +144,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 		try {
 			$this->driver->createDirectory($dirname, $config);
 			return $this->driver->getMetadata($dirname);
-		}catch (GoogleDriveException $e){
+		}catch (UnableToCreateDirectory $e){
 			return false;
 		}
 	}
@@ -147,7 +163,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function has($path)
 	{
-		return $this->driver->has($path);
+		return (bool)$this->getMetadata($path);
 	}
 
 	/**
@@ -165,7 +181,7 @@ class GoogleDriveAdapter extends AbstractAdapter
 	{
 		try {
 			return ['stream'=>$this->driver->readStream($path)];
-		}catch (GoogleDriveException $e){
+		}catch (UnableToReadFile $e){
 			return false;
 		}
 	}
@@ -183,7 +199,8 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function getMetadata($path)
 	{
-		return $this->driver->getMetadata($path);
+		$meta=$this->driver->getMetadata($path);
+		return $meta?$meta->toArrayV1():false;
 	}
 
 	/**
@@ -215,6 +232,6 @@ class GoogleDriveAdapter extends AbstractAdapter
 	 */
 	public function getVisibility($path)
 	{
-		return $this->driver->visibility($path);
+		return $this->getMetadata($path);
 	}
 }
