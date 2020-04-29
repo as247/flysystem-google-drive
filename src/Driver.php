@@ -7,6 +7,7 @@ use As247\Flysystem\DriveSupport\Cache\NullCache;
 use As247\Flysystem\DriveSupport\Cache\PathObjectCache;
 use As247\Flysystem\DriveSupport\Contracts\Cache\CacheInterface;
 use As247\Flysystem\DriveSupport\Contracts\Cache\PathCacheInterface;
+use As247\Flysystem\DriveSupport\Exception\FileNotFoundException;
 use As247\Flysystem\DriveSupport\Exception\InvalidStreamProvided;
 use As247\Flysystem\DriveSupport\Exception\InvalidVisibilityProvided;
 use As247\Flysystem\DriveSupport\Exception\UnableToCopyFile;
@@ -170,10 +171,10 @@ class Driver implements DriverContract
 		}
 		$file = $this->find($path);
 		if (!$file) {//already deleted
-			return;
+			throw FileNotFoundException::create($path);
 		}
 		if ($file->getId() === $this->root) {
-			throw UnableToDeleteFile::atLocation($path, "Root directory cannot be deleted");
+			throw UnableToDeleteDirectory::atLocation($path, "Root directory cannot be deleted");
 		}
 		$this->service->filesDelete($file);
 		$this->cache->put($path, false);
@@ -189,13 +190,13 @@ class Driver implements DriverContract
 		}
 		$file = $this->find($path);
 		if (!$file) {//already deleted
-			return;
+			throw FileNotFoundException::create($path);
 		}
 		if ($file->getId() === $this->root) {
-			throw UnableToDeleteFile::atLocation($path, "Root directory cannot be deleted");
+			throw UnableToDeleteDirectory::atLocation($path, "Root directory cannot be deleted");
 		}
 		$this->service->filesDelete($file);
-		$this->cache->put($path, false);
+		$this->cache->rename($path, false);
 	}
 
 	/**
@@ -418,7 +419,7 @@ class Driver implements DriverContract
 		if ($recursive) {
 			foreach ($results as $id => $result) {
 				if ($result['type'] === 'dir') {
-					yield from $this->listContents($result['path'], true);
+					yield from $this->listContents($result['path'], $recursive);
 				}
 				yield $id => $result;
 			}
@@ -640,34 +641,44 @@ class Driver implements DriverContract
 	 */
 	public function has($path)
 	{
-		return (bool)$this->getMetadata($path);
+		try {
+			$this->getMetadata($path);
+			return true;
+		}catch (FileNotFoundException $e){
+			return false;
+		}
 	}
 
 	public function isDirectory($path)
 	{
-		$meta = $this->getMetadata($path);
-		return isset($meta['type']) && $meta['type'] === 'dir';
+		try {
+			$meta = $this->getMetadata($path);
+			return $meta->isDir();
+		}catch (FileNotFoundException $e){
+			return false;
+		}
+
 	}
 
 	public function isFile($path)
 	{
-		$meta = $this->getMetadata($path);
-		return isset($meta['type']) && $meta['type'] === 'file';
+		try {
+			$meta = $this->getMetadata($path);
+			return $meta->isFile();
+		}catch (FileNotFoundException $e){
+			return false;
+		}
 	}
-
-	/**
-	 * @inheritDoc
-	 */
-	public function fileExists(string $path): bool
-	{
+	public function fileExists(string $path):bool {
 		return $this->isFile($path);
 	}
+
 
 	/**
 	 * @param $path
 	 * @return FileAttributes
 	 */
-	public function getMetadata($path)
+	public function getMetadata($path):FileAttributes
 	{
 		if ($obj = $this->find($path)) {
 			if ($path instanceof Google_Service_Drive_DriveFile) {
@@ -681,7 +692,7 @@ class Driver implements DriverContract
 			throw UnableToRetrieveMetadata::create($path, 'metadata');
 		}
 		//File not found just return null
-		return null;
+		throw FileNotFoundException::create($path);
 	}
 
 
