@@ -416,17 +416,12 @@ class Driver implements DriverContract
 			return;
 		}
 		$results = $this->fetchDirectory($directory, 1000);
-		if ($recursive) {
-			foreach ($results as $id => $result) {
-				if ($result['type'] === 'dir') {
-					yield from $this->listContents($result['path'], $recursive);
-				}
-				yield $id => $result;
+		foreach ($results as $id => $result) {
+			yield $id => $result;
+			if ($recursive && $result['type'] === 'dir') {
+				yield from $this->listContents($result['path'], $recursive);
 			}
-		} else {
-			yield from $results;
 		}
-
 	}
 
 	protected function fetchDirectory($directory, $pageSize = 1000)
