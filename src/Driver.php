@@ -22,6 +22,7 @@ use As247\Flysystem\DriveSupport\Exception\UnableToWriteFile;
 use As247\Flysystem\DriveSupport\Service\GoogleDrive;
 use As247\Flysystem\DriveSupport\Service\Logger;
 use As247\Flysystem\DriveSupport\Support\FileAttributes;
+use Closure;
 use Exception;
 use Generator;
 use GuzzleHttp\Psr7;
@@ -87,7 +88,7 @@ class Driver implements DriverContract
 		if(!isset($options['cache'])){
 			$options['cache']=new PathObjectCache();
 		}
-		if($options['cache'] instanceof \Closure){
+		if($options['cache'] instanceof Closure){
 			$options['cache']=$options['cache']();
 		}
 		if($options['cache']===false || $options['cache']==='null'){

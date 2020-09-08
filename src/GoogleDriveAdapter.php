@@ -19,8 +19,4 @@ class GoogleDriveAdapter extends AbstractAdapter
     {
         $this->driver = new Driver($service,$options);
     }
-
-
-
-
 }
