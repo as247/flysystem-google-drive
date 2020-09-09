@@ -577,6 +577,7 @@ class Driver implements DriverContract
 		$parent = $this->cache->get('/');
 
 		while (null !== ($name = array_shift($paths))) {
+            $parentPaths = $currentPaths;
 			$currentPaths[] = $name;
 			if ($this->cache->has($currentPaths)) {
 				$foundDir = $this->cache->get($currentPaths);
@@ -593,20 +594,17 @@ class Driver implements DriverContract
 			}
 			list($files, $isFull) = $this->service->filesFindByName($name, $parent);
 			if ($isFull) {
-				$parentPaths = $currentPaths;
-				array_pop($parentPaths);
 				$this->cache->complete($parentPaths);
 			}
 			$foundDir = false;
 			//Set current path as not exists, it will be updated again when we got matched file
 			$this->cache->put($currentPaths, false);
 			if ($files->count()) {
-				$currentPathsTmp = $currentPaths;
 				foreach ($files as $file) {
 					if ($file instanceof Google_Service_Drive_DriveFile) {
-						array_pop($currentPathsTmp);
-						array_push($currentPathsTmp, $file->getName());
-						$this->cache->put($currentPathsTmp, $file);
+                        $fileFound = $parentPaths;
+                        $fileFound[]=$file->getName();
+						$this->cache->put($fileFound, $file);
 						if ($this->isDirectory($file) && $file->getName() === $name) {
 							$foundDir = $file;
 						}
