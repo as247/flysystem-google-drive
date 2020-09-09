@@ -357,7 +357,7 @@ class Driver implements DriverContract
      * @return FileAttributes
      * @throws FileNotFoundException
      */
-	protected function upload($path, $contents, Config $config = null)
+	protected function upload(string $path, $contents, Config $config = null)
 	{
 		$contents = Psr7\stream_for($contents);
 		if (!$contents || !$contents->getSize()) {
@@ -474,13 +474,12 @@ class Driver implements DriverContract
 		$this->cache->complete($directory);
 	}
 
-	/**
-	 * Publish specified path item
-	 *
-	 * @param string $path
-	 *
-	 */
-	protected function publish($path)
+    /**
+     * Publish specified path item
+     *
+     * @param string $path
+     */
+	protected function publish(string $path)
 	{
 		if (!$file = $this->find($path)) {
 			throw UnableToSetVisibility::atLocation($path, 'File not found');
@@ -488,13 +487,12 @@ class Driver implements DriverContract
 		$this->service->publish($file);
 	}
 
-	/**
-	 * Un-publish specified path item
+    /**
+     * Un-publish specified path item
      *
-	 * @param string $path
-     *
-	 */
-	protected function unPublish($path)
+     * @param string $path
+     */
+	protected function unPublish(string $path)
 	{
 		if (!$file = $this->find($path)) {
 			throw UnableToSetVisibility::atLocation($path, 'File not found');
