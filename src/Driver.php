@@ -20,7 +20,6 @@ use As247\Flysystem\DriveSupport\Exception\UnableToRetrieveMetadata;
 use As247\Flysystem\DriveSupport\Exception\UnableToSetVisibility;
 use As247\Flysystem\DriveSupport\Exception\UnableToWriteFile;
 use As247\Flysystem\DriveSupport\Service\GoogleDrive;
-use As247\Flysystem\DriveSupport\Service\Logger;
 use As247\Flysystem\DriveSupport\Support\FileAttributes;
 use Closure;
 use Exception;
@@ -63,8 +62,10 @@ class Driver implements DriverContract
 			$options = ['root' => $options];
 		}
 		$this->service = new GoogleDrive($service, $options);
+        $this->logger = $this->service->getLogger();
+
 		$this->setRoot($options);
-		$this->logger = new Logger();
+
 	}
 
 	public function isTeamDrive(){
@@ -122,7 +123,7 @@ class Driver implements DriverContract
 				throw UnableToCreateDirectory::atLocation($path, "Maximum nesting folder exceeded");
 			}
 		}
-		$this->logger->log("Ensure directory $path");
+		$this->logger->log("mkdir: $path");
 		list($parent, $paths, $currentPaths) = $this->detectPath($path);
 
 		if (count($paths) != 0) {
@@ -179,6 +180,7 @@ class Driver implements DriverContract
 		}
 		$this->service->filesDelete($file);
 		$this->cache->put($path, false);
+        $this->logger->log("Deleted $path");
 	}
 
 	/**
@@ -198,6 +200,7 @@ class Driver implements DriverContract
 		}
 		$this->service->filesDelete($file);
 		$this->cache->rename($path, false);
+        $this->logger->log("Deleted $path");
 	}
 
 	/**
@@ -296,6 +299,7 @@ class Driver implements DriverContract
 		$file->setParents($parents);
 		$newFile = $this->service->filesCopy($from->id, $file);
 		$this->cache->put($toPath, $newFile);
+        $this->logger->log("Copied file: $fromPath -> $toPath");
 	}
 
 	public function move(string $fromPath, string $toPath, Config $config = null): void
@@ -340,6 +344,7 @@ class Driver implements DriverContract
 		}
 		$this->service->filesUpdate($from->getId(), $file);
 		$this->cache->rename($fromPath, $toPath);
+		$this->logger->log("Moved file: $fromPath -> $toPath");
 	}
 
 
@@ -392,7 +397,7 @@ class Driver implements DriverContract
 		} else {
 			$obj = $this->service->filesUploadChunk($file, $contents, $chunkSize);
 		}
-
+        $this->logger->log("Uploaded: $path");
 		if ($obj instanceof Google_Service_Drive_DriveFile) {
 			$this->cache->put($path, $obj);//update cache first
 
@@ -571,7 +576,7 @@ class Driver implements DriverContract
 	protected function detectPath($path)
 	{
 		$paths = $this->parsePath($path);
-		$this->logger->log("Path finding: " . json_encode($paths));
+		$this->logger->log("Path finding: " . join(':',$paths));
 		$currentPaths = [];
 
 		$parent = $this->cache->get('/');
@@ -620,7 +625,7 @@ class Driver implements DriverContract
 			$parent = $foundDir;
 		}
 		$parent = $parent->getId();
-		$this->logger->log("Found: " . $parent . '(' . json_encode($currentPaths) . ") " . json_encode($paths));
+		$this->logger->log("Found: " . $parent . '(' . join('/',$currentPaths) . ") " . join('/',$paths));
 		return [$parent, $paths, $currentPaths];
 	}
 
