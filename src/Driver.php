@@ -31,18 +31,17 @@ use Google_Service_Drive_DriveFile;
 use Google_Service_Drive_FileList;
 use League\Flysystem\AdapterInterface;
 use League\Flysystem\Config;
-use League\Flysystem\FilesystemException;
 use As247\Flysystem\DriveSupport\Support\Path;
 use As247\Flysystem\DriveSupport\Contracts\Driver as DriverContract;
 
 class Driver implements DriverContract
 {
 	/**
-	 * MIME tyoe of directory
+	 * MIME type of directory
 	 *
 	 * @var string
 	 */
-	const DIRMIME = 'application/vnd.google-apps.folder';
+	const DIR_MIME = 'application/vnd.google-apps.folder';
 
 
 	/**
@@ -103,7 +102,7 @@ class Driver implements DriverContract
 	public function initializeCacheRoot(){
 		$dRoot = new Google_Service_Drive_DriveFile();
 		$dRoot->setId($this->root);
-		$dRoot->setMimeType(static::DIRMIME);
+		$dRoot->setMimeType(static::DIR_MIME);
 		$this->cache->forever('/', $dRoot);
 	}
 
@@ -160,11 +159,12 @@ class Driver implements DriverContract
 		$this->upload($path, $contents, $config);
 	}
 
-	/**
-	 * Delete file only
-	 * @param $path
-	 * @return void
-	 */
+    /**
+     * Delete file only
+     * @param $path
+     * @return void
+     * @throws FileNotFoundException
+     */
 	public function delete(string $path): void
 	{
 		if ($this->isDirectory($path)) {
@@ -343,15 +343,15 @@ class Driver implements DriverContract
 	}
 
 
-	/**
-	 * Upload|Update item
-	 *
-	 * @param string $path
-	 * @param string|resource $contents
-	 * @param Config $config
-	 * @return FileAttributes
-	 * @throws FilesystemException
-	 */
+    /**
+     * Upload|Update item
+     *
+     * @param string $path
+     * @param string|resource $contents
+     * @param Config|null $config
+     * @return FileAttributes
+     * @throws FileNotFoundException
+     */
 	protected function upload($path, $contents, Config $config = null)
 	{
 		$contents = Psr7\stream_for($contents);
@@ -473,7 +473,6 @@ class Driver implements DriverContract
 	 * Publish specified path item
 	 *
 	 * @param string $path
-	 *            itemId path
 	 *
 	 */
 	protected function publish($path)
@@ -486,11 +485,9 @@ class Driver implements DriverContract
 
 	/**
 	 * Un-publish specified path item
-	 *
+     *
 	 * @param string $path
-	 *            itemId path
-	 *
-	 *
+     *
 	 */
 	protected function unPublish($path)
 	{
@@ -670,10 +667,11 @@ class Driver implements DriverContract
 	}
 
 
-	/**
-	 * @param $path
-	 * @return FileAttributes
-	 */
+    /**
+     * @param $path
+     * @return FileAttributes
+     * @throws FileNotFoundException
+     */
 	public function getMetadata($path):FileAttributes
 	{
 		if ($obj = $this->find($path)) {
