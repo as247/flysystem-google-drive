@@ -20,6 +20,8 @@ use As247\Flysystem\DriveSupport\Exception\UnableToRetrieveMetadata;
 use As247\Flysystem\DriveSupport\Exception\UnableToSetVisibility;
 use As247\Flysystem\DriveSupport\Exception\UnableToWriteFile;
 use As247\Flysystem\DriveSupport\Service\GoogleDrive;
+use As247\Flysystem\DriveSupport\Service\HasLogger;
+use As247\Flysystem\DriveSupport\Service\Logger;
 use As247\Flysystem\DriveSupport\Support\FileAttributes;
 use Closure;
 use Exception;
@@ -48,24 +50,21 @@ class Driver implements DriverContract
 	 */
 	protected $service;
 
-	protected $logger;
 	protected $root;//Root id
 	/**
 	 * @var PathObjectCache|PathCacheInterface
 	 */
 	protected $cache;
 	protected $maxFolderLevel = 128;
-
+	use HasLogger;
 	public function __construct(Google_Service_Drive $service, $options)
 	{
 		if (is_string($options)) {
 			$options = ['root' => $options];
 		}
 		$this->service = new GoogleDrive($service, $options);
-        $this->logger = $this->service->getLogger();
-
+        $this->setLogger($this->service->getLogger());
 		$this->setRoot($options);
-
 	}
 
 	public function isTeamDrive(){
@@ -574,7 +573,7 @@ class Driver implements DriverContract
 	protected function detectPath($path)
 	{
 		$paths = $this->parsePath($path);
-		$this->logger->log("Path finding: " . join(':',$paths));
+		$this->logger->log("Path finding: " . join(', ',$paths));
 		$currentPaths = [];
 
 		$parent = $this->cache->get('/');
