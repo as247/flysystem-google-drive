@@ -543,7 +543,7 @@ class Driver implements DriverContract
 
 	protected function parsePath($path)
 	{
-		$paths = Path::clean($path, 'array');
+		$paths = Path::explode($path);
 		$directory = [];
 		$file = [];
 		$level = 0;
