@@ -17,6 +17,9 @@ class GoogleDriveAdapter extends AbstractAdapter
 
     public function __construct(Google_Service_Drive $service, $options = [])
     {
+		if(!is_array($options)){
+			$options=['root'=>$options];
+		}
         $this->driver = new Driver($service,$options);
         $this->throwException=$options['debug']??'';
     }
