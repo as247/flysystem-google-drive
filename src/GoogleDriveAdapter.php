@@ -7,20 +7,22 @@
  */
 
 namespace As247\Flysystem\GoogleDrive;
-use As247\Flysystem\DriveSupport\Support\DriverForAdapter;
+use As247\CloudStorages\Storage\GoogleDrive;
+
+use As247\Flysystem\DriveSupport\StorageToAdapter;
 use Google_Service_Drive;
 use League\Flysystem\Adapter\AbstractAdapter;
 
 class GoogleDriveAdapter extends AbstractAdapter
 {
-	use DriverForAdapter;
+	use StorageToAdapter;
 
     public function __construct(Google_Service_Drive $service, $options = [])
     {
 		if(!is_array($options)){
 			$options=['root'=>$options];
 		}
-        $this->driver = new Driver($service,$options);
+        $this->storage = new GoogleDrive($service,$options);
         $this->throwException=$options['debug']??'';
     }
 }
