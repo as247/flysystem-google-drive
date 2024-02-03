@@ -9,7 +9,7 @@
 namespace As247\Flysystem\GoogleDrive;
 use As247\CloudStorages\Storage\GoogleDrive;
 
-use As247\Flysystem\DriveSupport\StorageToAdapter;
+use As247\CloudStorages\Support\StorageToAdapter;
 use Google_Service_Drive;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\PathPrefixer;
