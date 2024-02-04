@@ -6,7 +6,7 @@
 ## Installation
 
 ```bash
-composer require as247/flysystem-google-drive:^3.0
+composer require as247/flysystem-google-drive
 ```
 
 ## Usage
