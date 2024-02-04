@@ -11,6 +11,12 @@ composer require as247/flysystem-google-drive:^1.0
 
 ## Usage
 #### Follow [Google Docs](https://developers.google.com/drive/v3/web/enable-sdk) to obtain your `ClientId, ClientSecret & refreshToken`
+
+#### In addition, you can also check these easy-to-follow tutorial by [@ivanvermeyen](https://github.com/ivanvermeyen/laravel-google-drive-demo)
+
+- [Getting your Client ID and Secret](https://github.com/ivanvermeyen/laravel-google-drive-demo/blob/master/README/1-getting-your-dlient-id-and-secret.md)
+- [Getting your Refresh Token](https://github.com/ivanvermeyen/laravel-google-drive-demo/blob/master/README/2-getting-your-refresh-token.md)
+
 ```php
 $client = new \Google_Client();
 $client->setClientId('[app client id].apps.googleusercontent.com');
