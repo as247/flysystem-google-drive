@@ -1,0 +1,69 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019]
+        php: ['8.0', '8.1']
+      fail-fast: true
+      max-parallel: 2
+
+    name: PHP ${{ matrix.php }} - ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup PHP on Linux
+        if: matrix.os != 'windows-2019'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, gd, igbinary, msgpack, lzf, zstd, lz4, memcached
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup PHP on Windows
+        if: matrix.os == 'windows-2019'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pdo, sqlite, pdo_sqlite, gd, pdo_mysql, fileinfo, ftp, redis, memcached
+          tools: composer:v2
+          coverage: none
+
+      - name: Set LF on Windows
+        if: matrix.os == 'windows-2019'
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Prepare test environment
+        uses: nick-invision/retry@v1
+        with:
+          timeout_minutes: 5
+          max_attempts: 5
+          command: composer require league/flysystem-adapter-test-utilities:^3.21 phpunit/phpunit:^9.6.16 --no-interaction --no-update
+
+      - name: Install dependencies
+        uses: nick-invision/retry@v1
+        with:
+          timeout_minutes: 5
+          max_attempts: 5
+          command: composer update --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: Execute tests
+        run: vendor/bin/phpunit --verbose
+        env:
+          googleClientId: ${{ secrets.GG_CLIENT_ID }}
+          googleClientSecret: ${{ secrets.GG_CLIENT_SECRET }}
+          googleRefreshToken: ${{ secrets.GG_REFRESH_TOKEN }}
+          googleFolderId: ${{ secrets.GG_FOLDER_ID }}
+          googlePrefix: TestFly/${{ matrix.php }}-${{ matrix.os }}-${{ github.run_id }}

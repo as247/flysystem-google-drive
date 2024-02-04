@@ -14,13 +14,18 @@
   "require": {
     "php": ">=7.1",
     "ext-json": "*",
-    "as247/cloud-storages": "^1.2",
-    "league/flysystem": "^3.0",
+    "as247/cloud-storages": "^1.2.4",
+    "league/flysystem": "^3.23",
     "google/apiclient": "^2.0"
   },
   "autoload": {
     "psr-4": {
       "As247\\Flysystem\\GoogleDrive\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "As247\\Flysystem\\GoogleDrive\\Tests\\": "tests/"
     }
   },
   "minimum-stability": "dev",

@@ -25,6 +25,5 @@ class GoogleDriveAdapter implements FilesystemAdapter
 		}
         $this->storage = new GoogleDrive($service,$options);
         $this->prefixer = new PathPrefixer($options['prefix']??'', DIRECTORY_SEPARATOR);
-        $this->throwException=$options['debug']??'';
     }
 }
