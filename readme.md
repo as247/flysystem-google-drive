@@ -6,7 +6,7 @@
 ## Installation
 
 ```bash
-composer require as247/flysystem-google-drive:^1.0
+composer require as247/flysystem-google-drive:^3.0
 ```
 
 ## Usage
@@ -28,6 +28,7 @@ $service = new \Google_Service_Drive($client);
 $options=[
     'root'=>'[Root folder id]',
     'teamDrive'=>'[Team drive id]'//If your root folder inside team drive
+    'prefix'=>'[Path prefix]',//Path prefix inside root folder
 ];
 
 $adapter = new \As247\Flysystem\GoogleDrive\GoogleDriveAdapter($service, $options);
