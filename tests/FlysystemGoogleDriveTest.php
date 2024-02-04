@@ -21,7 +21,7 @@ class FlysystemGoogleDriveTest extends FilesystemAdapterTestCase
         $options=[
             'root'=>$_ENV['googleFolderId'],
             'prefix'=>$_ENV['googlePrefix'],
-            'teamDrive'=>!empty($_ENV['googleIsTeamDrive']) && $_ENV['googleIsTeamDrive']!=='false',
+            'teamDrive'=>$_ENV['googleIsTeamDrive']??'',
             //'cache'=>__DIR__.'/cache.sqlite',
             //'debug'=>true,
             //'useTrash'=>false,

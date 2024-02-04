@@ -28,6 +28,7 @@ $service = new \Google_Service_Drive($client);
 $options=[
     'root'=>'[Root folder id]',
     'teamDrive'=>'[Team drive id]'//If your root folder inside team drive
+    'prefix'=>'[Path prefix]',//Path prefix inside root folder
 ];
 
 $adapter = new \As247\Flysystem\GoogleDrive\GoogleDriveAdapter($service, $options);

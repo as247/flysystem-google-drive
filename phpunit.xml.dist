@@ -26,6 +26,6 @@
         <env name="googleRefreshToken" value=""/>
         <env name="googleFolderId" value=""/>
         <env name="googlePrefix" value=""/>
-        <env name="googleIsTeamDrive" value="false"/>
+        <env name="googleIsTeamDrive" value=""/>
     </php>
 </phpunit>
